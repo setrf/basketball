@@ -27,10 +27,11 @@ h1 { margin: 0 0 12px; }
 .ball {
   position: absolute;
   bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: calc(50% - 25px);
+  width: 50px;
+  height: 50px;
   font-size: 50px;
-  cursor: pointer;
+  cursor: grab;
 }
 
 .hoop {
@@ -54,16 +55,4 @@ h1 { margin: 0 0 12px; }
   width: 5px;
   height: 30px;
   background: #ff8c00;
-}
-
-@keyframes throw {
-  0% {
-    transform: translate(-50%, 0) scale(1);
-  }
-  50% {
-    transform: translate(-50%, -200px) scale(1.2);
-  }
-  100% {
-    transform: translate(-50%, 0) scale(1);
-  }
 }
