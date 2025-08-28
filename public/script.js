@@ -1,12 +1,28 @@
 const ball = document.querySelector('.ball');
 const hoop = document.querySelector('.hoop');
 const scoreDisplay = document.querySelector('.score span');
+const highScoreDisplay = document.querySelector('.high-score span');
 const gameArea = document.querySelector('.game-area');
+const resetButton = document.querySelector('.reset-button');
 
 let score = 0;
+let highScore = localStorage.getItem('basketball-high-score') || 0;
 let isDragging = false;
 let startX, startY;
 let endX, endY;
+
+let hoopX = gameArea.offsetWidth / 2 - 50;
+let hoopSpeed = 2;
+
+highScoreDisplay.textContent = highScore;
+
+function moveHoop() {
+  hoopX += hoopSpeed;
+  if (hoopX + 100 > gameArea.offsetWidth || hoopX < 0) {
+    hoopSpeed *= -1;
+  }
+  hoop.style.left = `${hoopX}px`;
+}
 
 ball.addEventListener('mousedown', e => {
   isDragging = true;
@@ -37,6 +53,7 @@ gameArea.addEventListener('mouseup', e => {
   let ballY = ball.offsetTop;
 
   const gameLoop = setInterval(() => {
+    moveHoop();
     velocityX *= 0.99;
     velocityY += gravity;
 
@@ -58,6 +75,11 @@ gameArea.addEventListener('mouseup', e => {
     if (checkCollision()) {
       score++;
       scoreDisplay.textContent = score;
+      if (score > highScore) {
+        highScore = score;
+        highScoreDisplay.textContent = highScore;
+        localStorage.setItem('basketball-high-score', highScore);
+      }
       clearInterval(gameLoop);
       resetBall();
     }
@@ -86,3 +108,11 @@ function resetBall() {
   ball.style.top = 'auto';
   ball.style.bottom = '10px';
 }
+
+resetButton.addEventListener('click', () => {
+  localStorage.removeItem('basketball-high-score');
+  highScore = 0;
+  highScoreDisplay.textContent = highScore;
+});
+
+setInterval(moveHoop, 16);

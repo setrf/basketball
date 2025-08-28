@@ -11,7 +11,9 @@ body { background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple
 .container { max-width: 720px; margin: 10vh auto; padding: 24px; text-align: center; }
 h1 { margin: 0 0 12px; }
 
-.score {
+.score-container {
+  display: flex;
+  justify-content: space-around;
   font-size: 24px;
   margin-bottom: 20px;
 }
