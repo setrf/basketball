@@ -1,31 +1,40 @@
-# Basketball (Phaser 3 + TypeScript)
+# Free Throw (HTML5 Canvas)
 
-Singleplayer 2D basketball game that runs on mobile and desktop. Drag from the ball to aim; release to shoot. Score when the ball passes cleanly through the hoop.
+Ultra-simple, static free-throw shooting game implemented in plain JavaScript on HTML5 Canvas. No frameworks, no build step.
 
-## Dev
+## Play
 
-- Run locally:
-  - `npm start` (serves on http://localhost:8080)
-- Build:
-  - `npm run build` (outputs `public/game.js`)
+- Desktop: Click and drag from the ball to set angle/power, release to shoot.
+- Mobile: Touch and drag, release to shoot.
+- Scoring: A clean pass through the rim (top sensor → bottom sensor) counts as 2 points.
+- Reset: The ball resets after a make, going out-of-bounds, or settling.
+
+## Local Run
+
+Just open `public/index.html` in a browser.
+
+Optional: serve the folder to avoid file:// restrictions while developing.
+
+```
+cd public
+python3 -m http.server 8080
+# open http://localhost:8080
+```
 
 ## Deploy (on droplet)
 
-Use the helper deploy script documented in the platform README:
+Sync the static folder to the nginx apps root:
 
-- `deploy_static /root/Projects/apps/basketball/public basketball`
+```
+deploy_static /root/Projects/apps/basketball/public basketball
+```
 
-Then access via:
+Access via:
 
 - Platform path: `http://<droplet-ip>/apps/basketball/`
-- Domain (if configured): `https://basketball.mertgulsun.com/`
+- Domain: `https://basketball.mertgulsun.com/`
 
-## Controls
+## Tech
 
-- Touch/Mouse: Drag from the ball to set aim and power (longer drag → more power). Release to shoot.
-- The hoop is on the right; shots reset when out of bounds or at rest.
-
-## Notes
-
-- Uses generated textures (no external assets) for easy deployment.
-- Physics: Arcade Physics with backboard and rim-edge colliders; net sensors detect clean makes.
+- No dependencies, no bundler.
+- Canvas-based rendering and simple hand-rolled physics.

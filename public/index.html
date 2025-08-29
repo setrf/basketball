@@ -5,24 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <title>Phaser Basketball</title>
+    <title>Free Throw</title>
     <style>
       :root { --hud-font: clamp(12px, 1.2vw, 18px); --hint-font: clamp(12px, 1.1vw, 16px); }
       html, body { height: 100%; margin: 0; background: #0b1020; color: #fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-      #game-root { width: 100%; height: 100%; display: grid; place-items: center; }
+      #wrap { width: 100%; height: 100%; position: relative; display: grid; place-items: center; }
+      canvas { max-width: 100vw; max-height: 100vh; display: block; }
       .hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; gap: 8px; pointer-events: none; }
+      .pill { background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.15); padding: 6px 10px; border-radius: 999px; font-size: var(--hud-font); }
       .hint { position: absolute; bottom: 12px; left: 0; right: 0; text-align: center; color: #aab; font-size: var(--hint-font); opacity: 0.9; pointer-events: none; }
-      .pill { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); padding: 6px 10px; border-radius: 999px; font-size: var(--hud-font); }
-      a { color: #9cf; text-decoration: none; }
     </style>
   </head>
   <body>
-    <div id="game-root"></div>
-    <div class="hud">
-      <div class="pill" id="score-pill">Score: 0</div>
-      <div class="pill" id="streak-pill">Streak: 0</div>
+    <div id="wrap">
+      <canvas id="game" width="960" height="540"></canvas>
+      <div class="hud">
+        <div class="pill" id="score">Score: 0</div>
+        <div class="pill">Free Throw</div>
+      </div>
+      <div class="hint">Drag from the ball to aim, release to shoot</div>
     </div>
-    <div class="hint">Drag from the ball to aim, release to shoot</div>
     <script src="./game.js"></script>
   </body>
-</html>
+  </html>
