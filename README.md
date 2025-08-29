@@ -1,13 +1,16 @@
 # Basketball Game
 
-A simple basketball game where you can shoot a ball into a hoop.
+A fun and interactive basketball game built with the Phaser game framework.
 
 ## How to Play
 
-- Click on the ball to shoot it.
-- If the ball goes through the hoop, you score a point.
+- Drag the ball to set the power and angle of your shot.
+- Release the mouse button to shoot the ball.
+- Score as many points as you can!
 
 ## Features
 
-- Simple click-to-shoot gameplay.
+- Realistic "Drag and Shoot" mechanic.
+- Physics-based ball trajectory.
 - Score tracking.
+- Built with the Phaser 3 game framework.

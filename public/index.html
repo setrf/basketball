@@ -4,21 +4,15 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
     <title>Basketball Game</title>
-    <link rel="stylesheet" href="./style.css" />
+    <style>
+      body {
+        margin: 0;
+        background-color: #0b0f14;
+      }
+    </style>
   </head>
   <body>
-    <main class="container">
-      <h1>Drag and Shoot Basketball</h1>
-      <div class="score-container">
-        <div class="score">Score: <span>0</span></div>
-        <div class="high-score">High Score: <span>0</span></div>
-      </div>
-      <div class="game-area">
-        <div class="ball">🏀</div>
-        <div class="hoop"></div>
-      </div>
-    <button class="reset-button">Reset High Score</button>
-    </main>
-    <script src="./script.js"></script>
+    <script src="./phaser.min.js"></script>
+    <script src="../src/game.js"></script>
   </body>
 </html>
