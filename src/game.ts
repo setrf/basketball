@@ -1,268 +1,275 @@
 import Phaser from 'phaser';
 
-// Choose a better default orientation for desktop users.
-// Landscape on wide screens, portrait on tall/mobile screens.
-const prefersLandscape = () => {
-  if (typeof window === 'undefined') return false;
-  return window.innerWidth >= window.innerHeight;
-};
-const GAME_WIDTH = prefersLandscape() ? 1280 : 720;
-const GAME_HEIGHT = prefersLandscape() ? 720 : 1280;
+type ArcadeBody = Phaser.Physics.Arcade.Body;
+const WIDTH = 1280;
+const HEIGHT = 720;
 
-class MainScene extends Phaser.Scene {
-  private ball!: Phaser.Physics.Arcade.Image;
-  private rimLeft!: Phaser.Physics.Arcade.Image;
-  private rimRight!: Phaser.Physics.Arcade.Image;
-  private backboard!: Phaser.Physics.Arcade.Image;
-  private sensorTop!: Phaser.Types.Physics.Arcade.GameObjectWithBody;
-  private sensorBottom!: Phaser.Types.Physics.Arcade.GameObjectWithBody;
+type TeamId = 'blue' | 'red';
 
-  private aimGfx!: Phaser.GameObjects.Graphics;
-  private dragging = false;
-  private dragStart = new Phaser.Math.Vector2();
-  private canShoot = true;
-  private lastShotAt = 0;
-
-  private score = 0;
-  private streak = 0;
-  private passArmed = false; // armed after top sensor, score when bottom sensor
-  private passArmedAt = 0;
-
-  constructor() {
-    super('main');
+class Hoop {
+  scene: Phaser.Scene;
+  rimL!: Phaser.Physics.Arcade.Image;
+  rimR!: Phaser.Physics.Arcade.Image;
+  board!: Phaser.Physics.Arcade.Image;
+  top!: Phaser.GameObjects.Rectangle & { body: ArcadeBody };
+  bot!: Phaser.GameObjects.Rectangle & { body: ArcadeBody };
+  x: number; y: number; team: TeamId;
+  constructor(scene: Phaser.Scene, x: number, y: number, team: TeamId) {
+    this.scene = scene; this.x = x; this.y = y; this.team = team;
+    const s = scene as Phaser.Scene & { physics: Phaser.Physics.Arcade.ArcadePhysics };
+    // Board (to the side of the rim)
+    this.board = s.physics.add.staticImage(x + (team === 'blue' ? 55 : -55), y - 60, 'px')
+      .setScale(12, 80).setTint(0xffffff).setAlpha(0.9).setOrigin(0.5);
+    (this.board.body as Phaser.Physics.Arcade.StaticBody).updateFromGameObject();
+    // Rim edges (open center)
+    this.rimL = s.physics.add.staticImage(x - 46, y, 'rimNode');
+    this.rimR = s.physics.add.staticImage(x + 46, y, 'rimNode');
+    (this.rimL.body as Phaser.Physics.Arcade.StaticBody).updateFromGameObject();
+    (this.rimR.body as Phaser.Physics.Arcade.StaticBody).updateFromGameObject();
+    // Sensors
+    this.top = s.add.rectangle(x, y - 6, 88, 10, 0xffffff, 0) as any;
+    s.physics.add.existing(this.top, true);
+    this.bot = s.add.rectangle(x, y + 12, 88, 10, 0xffffff, 0) as any;
+    s.physics.add.existing(this.bot, true);
   }
+}
 
-  preload() {
-    // Generate simple textures via Graphics at runtime (no external assets)
-    this.createGeneratedTextures();
+class Player {
+  scene: Phaser.Scene;
+  sprite!: Phaser.Physics.Arcade.Image;
+  team: TeamId;
+  keys?: { left: Phaser.Input.Keyboard.Key; right: Phaser.Input.Keyboard.Key; jump: Phaser.Input.Keyboard.Key; shoot: Phaser.Input.Keyboard.Key };
+  isHuman: boolean;
+  speed = 320;
+  jumpVel = -650;
+  hasBall = false;
+  facing: 1 | -1 = 1;
+  label!: Phaser.GameObjects.Text;
+  constructor(scene: Phaser.Scene, x: number, y: number, team: TeamId, isHuman: boolean, texture: string, keys?: Player['keys']) {
+    this.scene = scene; this.team = team; this.isHuman = isHuman; this.keys = keys;
+    const s = scene as Phaser.Scene & { physics: Phaser.Physics.Arcade.ArcadePhysics };
+    this.sprite = s.physics.add.image(x, y, texture).setCollideWorldBounds(true);
+    this.sprite.setBounce(0);
+    this.sprite.setDrag(1200, 0);
+    this.sprite.setMaxVelocity(500, 1000);
+    this.label = scene.add.text(x, y - 50, team.toUpperCase(), { fontSize: '14px', color: '#fff' }).setOrigin(0.5);
   }
+  updateLabel() { this.label.setPosition(this.sprite.x, this.sprite.y - 50); }
+}
+
+class JamScene extends Phaser.Scene {
+  ball!: Phaser.Physics.Arcade.Image;
+  ballHolder: Player | null = null;
+  hoops!: { left: Hoop; right: Hoop };
+  teams = { blue: 0, red: 0 };
+  p1!: Player; p2!: Player; a1!: Player; a2!: Player;
+  scoreText!: Phaser.GameObjects.Text;
+  lastTopPass: { hoop: Hoop | null; at: number } = { hoop: null, at: 0 };
+
+  constructor() { super('jam'); }
+
+  preload() { this.createTextures(); }
 
   create() {
     this.cameras.main.setBackgroundColor('#0b1020');
-    const W = this.scale.width;
-    const H = this.scale.height;
-    this.physics.world.setBounds(0, 0, W, H);
+    this.physics.world.setBounds(0, 0, WIDTH, HEIGHT);
 
-    // Court baseline (optional visual)
-    const gfx = this.add.graphics();
-    gfx.lineStyle(4, 0x1c2a4a, 1);
-    gfx.strokeRect(16, 16, GAME_WIDTH - 32, GAME_HEIGHT - 32);
+    const court = this.add.graphics();
+    court.lineStyle(6, 0x173158, 1); court.strokeRect(20, 20, WIDTH - 40, HEIGHT - 40);
+    court.lineStyle(2, 0x173158, 1); court.strokeCircle(WIDTH * 0.5, HEIGHT * 0.5, 90);
 
-    // Backboard & rim placement (right side, upper half)
-    const rimX = W - Math.max(120, Math.round(W * 0.12));
-    const rimY = Math.round(H * 0.38);
-
-    // Backboard
-    this.backboard = this.physics.add.staticImage(rimX + 55, rimY - 60, 'px')
-      .setScale(12, 80)
-      .setTint(0xffffff)
-      .setAlpha(0.8)
-      .setOrigin(0.5);
-    (this.backboard.body as Phaser.Physics.Arcade.StaticBody).updateFromGameObject();
-
-    // Rim edges (two small colliders, open center)
-    this.rimLeft = this.physics.add.staticImage(rimX - 46, rimY, 'rimNode');
-    this.rimRight = this.physics.add.staticImage(rimX + 46, rimY, 'rimNode');
-    (this.rimLeft.body as Phaser.Physics.Arcade.StaticBody).updateFromGameObject();
-    (this.rimRight.body as Phaser.Physics.Arcade.StaticBody).updateFromGameObject();
-
-    // Net sensors (overlaps only)
-    this.sensorTop = this.add.rectangle(rimX, rimY - 6, 88, 10, 0xffffff, 0) as any;
-    this.physics.add.existing(this.sensorTop, true);
-    this.sensorBottom = this.add.rectangle(rimX, rimY + 12, 88, 10, 0xffffff, 0) as any;
-    this.physics.add.existing(this.sensorBottom, true);
+    // Hoops (left hoop belongs to red team; right hoop to blue team)
+    this.hoops = {
+      left: new Hoop(this, 160, HEIGHT * 0.35, 'red'),
+      right: new Hoop(this, WIDTH - 160, HEIGHT * 0.35, 'blue'),
+    };
 
     // Ball
-    this.ball = this.physics.add.image(Math.max(110, Math.round(W * 0.17)), H - 140, 'ball');
-    this.ball.setCircle(22).setOffset(-2, -2);
-    this.ball.setBounce(0.65);
-    this.ball.setDamping(true).setDrag(0.007);
-    this.ball.setCollideWorldBounds(true);
-    (this.ball.body as Phaser.Physics.Arcade.Body).setMaxSpeed(1500);
+    this.ball = this.physics.add.image(WIDTH * 0.5, HEIGHT * 0.55, 'ball');
+    this.ball.setCircle(12); this.ball.setBounce(0.68).setDamping(true).setDrag(0.01).setCollideWorldBounds(true);
+    (this.ball.body as ArcadeBody).setMaxSpeed(1600);
+
+    // Players: two per team
+    const kb = this.input.keyboard!;
+    const keysP1 = {
+      left: kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
+      right: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
+      jump: kb.addKey(Phaser.Input.Keyboard.KeyCodes.W),
+      shoot: kb.addKey(Phaser.Input.Keyboard.KeyCodes.F),
+    };
+    const keysP2 = {
+      left: kb.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT),
+      right: kb.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT),
+      jump: kb.addKey(Phaser.Input.Keyboard.KeyCodes.UP),
+      shoot: kb.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER),
+    };
+    this.p1 = new Player(this, 260, HEIGHT - 80, 'blue', true, 'stick_blue', keysP1);
+    this.p2 = new Player(this, WIDTH - 260, HEIGHT - 80, 'red', true, 'stick_red', keysP2);
+    // AI teammates
+    this.a1 = new Player(this, 360, HEIGHT - 80, 'blue', false, 'stick_blue');
+    this.a2 = new Player(this, WIDTH - 360, HEIGHT - 80, 'red', false, 'stick_red');
 
     // Colliders
-    this.physics.add.collider(this.ball, this.backboard);
-    this.physics.add.collider(this.ball, this.rimLeft);
-    this.physics.add.collider(this.ball, this.rimRight);
-
-    // Overlaps for scoring
-    this.physics.add.overlap(this.ball, this.sensorTop as any, () => {
-      // Only arm if moving downward through top sensor
-      if ((this.ball.body as Phaser.Physics.Arcade.Body).velocity.y > 80) {
-        this.passArmed = true;
-        this.passArmedAt = this.time.now;
-      }
-    });
-    this.physics.add.overlap(this.ball, this.sensorBottom as any, () => {
-      if (this.passArmed && this.time.now - this.passArmedAt < 800) {
-        this.addScore();
-        this.passArmed = false;
-      }
+    const objs = [this.hoops.left.board, this.hoops.left.rimL, this.hoops.left.rimR, this.hoops.right.board, this.hoops.right.rimL, this.hoops.right.rimR];
+    objs.forEach(o => this.physics.add.collider(this.ball, o));
+    [this.p1, this.p2, this.a1, this.a2].forEach(p => {
+      this.physics.add.collider(p.sprite, this.hoops.left.board);
+      this.physics.add.collider(p.sprite, this.hoops.right.board);
     });
 
-    // Input & aiming
-    this.aimGfx = this.add.graphics();
-    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.onPointerDown(p));
-    this.input.on('pointermove', (p: Phaser.Input.Pointer) => this.onPointerMove(p));
-    this.input.on('pointerup', (p: Phaser.Input.Pointer) => this.onPointerUp(p));
+    // Pickups and steals
+    [this.p1, this.p2, this.a1, this.a2].forEach(p => this.physics.add.overlap(this.ball, p.sprite, () => this.tryPickup(p)));
 
-    // Hook into DOM HUD pills if present
-    this.updateHud();
+    // Scoring sensors
+    this.physics.add.overlap(this.ball, this.hoops.left.top as any, () => this.armHoop(this.hoops.left));
+    this.physics.add.overlap(this.ball, this.hoops.left.bot as any, () => this.checkScore(this.hoops.left));
+    this.physics.add.overlap(this.ball, this.hoops.right.top as any, () => this.armHoop(this.hoops.right));
+    this.physics.add.overlap(this.ball, this.hoops.right.bot as any, () => this.checkScore(this.hoops.right));
+
+    // Score HUD
+    this.scoreText = this.add.text(WIDTH * 0.5, 28, 'BLUE 0  -  0 RED', { fontSize: '24px', color: '#fff' }).setOrigin(0.5);
   }
 
-  update(time: number, delta: number) {
-    const body = this.ball.body as Phaser.Physics.Arcade.Body;
-    // Reset conditions: off-screen or long idle after a shot
-    if (this.ball.y > this.scale.height + 200) {
-      this.resetBall();
+  update(_: number, __: number) {
+    this.updatePlayer(this.p1, this.hoops.right);
+    this.updatePlayer(this.p2, this.hoops.left);
+    this.updateAi(this.a1, this.hoops.right);
+    this.updateAi(this.a2, this.hoops.left);
+    [this.p1, this.p2, this.a1, this.a2].forEach(p => p.updateLabel());
+    // Ball follow when held
+    if (this.ballHolder) {
+      const offX = this.ballHolder.team === 'blue' ? 18 : -18;
+      this.ball.setPosition(this.ballHolder.sprite.x + offX, this.ballHolder.sprite.y - 20);
     }
-    if (!this.dragging && !this.canShoot) {
-      if (body.speed < 30 && time - this.lastShotAt > 1000) {
-        this.resetBall();
-      }
-    }
   }
 
-  private onPointerDown(p: Phaser.Input.Pointer) {
-    const body = this.ball.body as Phaser.Physics.Arcade.Body;
-    const withinBall = Phaser.Math.Distance.Between(p.x, p.y, this.ball.x, this.ball.y) <= 42;
-    if (!this.canShoot || !withinBall) return;
-    this.dragging = true;
-    this.dragStart.set(p.x, p.y);
-    body.setVelocity(0, 0);
-    this.drawAim(p.x, p.y);
-  }
-
-  private onPointerMove(p: Phaser.Input.Pointer) {
-    if (!this.dragging) return;
-    this.drawAim(p.x, p.y);
-  }
-
-  private onPointerUp(p: Phaser.Input.Pointer) {
-    if (!this.dragging) return;
-    this.dragging = false;
-
-    const dx = p.x - this.dragStart.x;
-    const dy = p.y - this.dragStart.y;
-    const vec = new Phaser.Math.Vector2(dx, dy);
-    const maxPull = 240; // pixels
-    if (vec.length() < 10) {
-      this.aimGfx.clear();
-      return; // tiny pull: ignore
-    }
-    if (vec.length() > maxPull) vec.setLength(maxPull);
-
-    // Launch opposite to drag vector; scale power
-    const power = 6; // tune power multiplier
-    const vx = -vec.x * power;
-    const vy = -vec.y * power;
-
-    const body = this.ball.body as Phaser.Physics.Arcade.Body;
-    body.setAllowGravity(true);
-    body.setVelocity(vx, vy);
-
-    this.canShoot = false;
-    this.lastShotAt = this.time.now;
-    this.aimGfx.clear();
-  }
-
-  private drawAim(x: number, y: number) {
-    // draw from ball to pointer, with capped length
-    const origin = new Phaser.Math.Vector2(this.ball.x, this.ball.y);
-    const target = new Phaser.Math.Vector2(x, y);
-    const vec = target.clone().subtract(origin);
-    const maxPull = 240;
-    if (vec.length() > maxPull) vec.setLength(maxPull);
-
-    const end = origin.clone().add(vec);
-    const oppEnd = origin.clone().subtract(vec); // launch direction
-
-    this.aimGfx.clear();
-    this.aimGfx.lineStyle(4, 0x87c5ff, 0.9);
-    this.aimGfx.beginPath();
-    this.aimGfx.moveTo(origin.x, origin.y);
-    this.aimGfx.lineTo(end.x, end.y);
-    this.aimGfx.strokePath();
-
-    // arrow head pointing launch direction
-    const arrowLen = 26;
-    const dir = oppEnd.clone().subtract(origin).normalize();
-    const base = origin.clone().add(dir.clone().scale(36));
-    const left = base.clone().add(dir.clone().rotate(Math.PI * 0.75).scale(arrowLen));
-    const right = base.clone().add(dir.clone().rotate(-Math.PI * 0.75).scale(arrowLen));
-    this.aimGfx.lineStyle(4, 0x5fb0ff, 0.9);
-    this.aimGfx.beginPath();
-    this.aimGfx.moveTo(base.x, base.y);
-    this.aimGfx.lineTo(left.x, left.y);
-    this.aimGfx.moveTo(base.x, base.y);
-    this.aimGfx.lineTo(right.x, right.y);
-    this.aimGfx.strokePath();
-  }
-
-  private addScore() {
-    this.score += 1;
-    this.streak += 1;
-    // small popup text
-    const t = this.add.text(this.ball.x, this.ball.y - 30, '+1', {
-      fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif',
-      fontSize: '36px',
-      color: '#9cf',
-      stroke: '#001',
-      strokeThickness: 4,
-    }).setOrigin(0.5);
-    this.tweens.add({ targets: t, y: t.y - 40, alpha: 0, duration: 600, onComplete: () => t.destroy() });
-    this.updateHud();
-  }
-
-  private resetBall() {
-    this.passArmed = false;
-    this.canShoot = true;
-    const W = this.scale.width; const H = this.scale.height;
-    this.ball.setPosition(Math.max(110, Math.round(W * 0.17)), H - 140);
-    this.ball.setVelocity(0, 0);
-    (this.ball.body as Phaser.Physics.Arcade.Body).setAllowGravity(true);
-    // reset streak if last action didn’t score recently
-    if (this.time.now - this.passArmedAt > 1200) this.streak = 0;
-    this.updateHud();
-  }
-
-  private updateHud() {
-    const scorePill = document.getElementById('score-pill');
-    const streakPill = document.getElementById('streak-pill');
-    if (scorePill) scorePill.textContent = `Score: ${this.score}`;
-    if (streakPill) streakPill.textContent = `Streak: ${this.streak}`;
-  }
-
-  private createGeneratedTextures() {
-    // Ball (radial gradient)
-    const g = this.add.graphics({ x: 0, y: 0 });
-    g.setVisible(false);
-    const R = 24;
-    const size = R * 2 + 4;
-    g.clear();
-    g.fillStyle(0xff7a00, 1);
-    g.fillCircle(R + 2, R + 2, R);
-    g.lineStyle(3, 0x5a2a00, 1);
-    // simple basketball seams
-    g.strokeCircle(R + 2, R + 2, R - 4);
-    g.beginPath();
-    g.moveTo(4, R + 2); g.lineTo(size - 4, R + 2); g.strokePath();
-    g.beginPath();
-    g.moveTo(R + 2, 4); g.lineTo(R + 2, size - 4); g.strokePath();
-    g.generateTexture('ball', size, size);
-
-    // Rim node (small circle)
-    g.clear();
-    g.fillStyle(0xff3d3d, 1);
-    g.fillCircle(6, 6, 6);
-    g.generateTexture('rimNode', 12, 12);
-
-    // 1px white pixel (backboard base)
-    g.clear();
-    g.fillStyle(0xffffff, 1);
-    g.fillRect(0, 0, 1, 1);
-    g.generateTexture('px', 1, 1);
+  // Textures
+  createTextures() {
+    const g = this.add.graphics();
+    // ball
+    g.clear(); g.fillStyle(0xff7a00, 1); g.fillCircle(12, 12, 12);
+    g.lineStyle(2, 0x512300, 1); g.strokeCircle(12, 12, 10); g.moveTo(2,12); g.lineTo(22,12); g.strokePath(); g.moveTo(12,2); g.lineTo(12,22); g.strokePath();
+    g.generateTexture('ball', 24, 24);
+    // rim & px
+    g.clear(); g.fillStyle(0xff3d3d, 1); g.fillCircle(6,6,6); g.generateTexture('rimNode', 12, 12);
+    g.clear(); g.fillStyle(0xffffff, 1); g.fillRect(0,0,1,1); g.generateTexture('px', 1, 1);
+    // stick players
+    const makeStick = (name: string, color: number) => {
+      g.clear(); g.lineStyle(4, 0x000000, 0.6);
+      g.fillStyle(color, 1); g.fillRect(6, 20, 12, 36); // torso
+      g.fillStyle(0xffffff, 1); g.fillCircle(12, 12, 10); // head
+      g.lineBetween(6, 38, 0, 48); g.lineBetween(18, 38, 24, 48); // arms
+      g.lineBetween(10, 56, 6, 70); g.lineBetween(14, 56, 18, 70); // legs
+      g.generateTexture(name, 24, 72);
+    };
+    makeStick('stick_blue', 0x4dabff);
+    makeStick('stick_red', 0xff5a5a);
     g.destroy();
+  }
+
+  // Mechanics
+  tryPickup(p: Player) {
+    if (this.ballHolder && this.ballHolder !== p) {
+      // allow steals if ball is slow
+      const speed = (this.ball.body as ArcadeBody).speed || 0;
+      if (speed < 120) this.dropBall(); else return;
+    }
+    if (this.ballHolder) return;
+    const body = this.ball.body as ArcadeBody;
+    if (body.velocity.length() > 300) return;
+    this.ballHolder = p;
+    body.setAllowGravity(false); body.setVelocity(0, 0);
+    this.ball.setBounce(0);
+  }
+
+  dropBall() {
+    if (!this.ballHolder) return;
+    const body = this.ball.body as ArcadeBody;
+    this.ballHolder = null;
+    body.setAllowGravity(true);
+    this.ball.setBounce(0.68);
+  }
+
+  shoot(p: Player, towardHoop: Hoop) {
+    if (this.ballHolder !== p) return;
+    const body = this.ball.body as ArcadeBody;
+    this.ballHolder = null; body.setAllowGravity(true);
+    this.ball.setBounce(0.68);
+    const dir = towardHoop.x > p.sprite.x ? 1 : -1;
+    const vx = 480 * dir; const vy = -700;
+    body.setVelocity(vx, vy);
+  }
+
+  dunkIfPossible(p: Player, hoop: Hoop): boolean {
+    const d = Phaser.Math.Distance.Between(p.sprite.x, p.sprite.y, hoop.x, hoop.y);
+    if (this.ballHolder === p && d < 90 && p.sprite.y < hoop.y + 80) {
+      const body = this.ball.body as ArcadeBody;
+      this.ballHolder = null; body.setAllowGravity(true);
+      this.ball.setPosition(hoop.x, hoop.y + 4);
+      body.setVelocity(0, 900);
+      return true;
+    }
+    return false;
+  }
+
+  armHoop(hoop: Hoop) {
+    const vy = (this.ball.body as ArcadeBody).velocity.y;
+    if (vy > 80) { this.lastTopPass = { hoop, at: this.time.now }; }
+  }
+  checkScore(hoop: Hoop) {
+    if (this.lastTopPass.hoop === hoop && this.time.now - this.lastTopPass.at < 900) {
+      const scoringTeam: TeamId = hoop.team; // hoop belongs to defender's team
+      const pointTeam: TeamId = scoringTeam === 'blue' ? 'red' : 'blue';
+      this.teams[pointTeam] += 2;
+      this.flashText(pointTeam.toUpperCase() + ' SCORES!');
+      this.updateScore();
+      this.resetAfterScore(pointTeam);
+      this.lastTopPass = { hoop: null, at: 0 };
+    }
+  }
+
+  updateScore() { this.scoreText.setText(`BLUE ${this.teams.blue}  -  ${this.teams.red} RED`); }
+
+  resetAfterScore(scoringTeam: TeamId) {
+    this.dropBall();
+    const body = this.ball.body as ArcadeBody; body.setVelocity(0, 0);
+    const x = scoringTeam === 'blue' ? WIDTH * 0.25 : WIDTH * 0.75;
+    this.ball.setPosition(x, HEIGHT * 0.55);
+  }
+
+  flashText(msg: string) {
+    const t = this.add.text(WIDTH * 0.5, HEIGHT * 0.18, msg, { fontSize: '36px', color: '#fff' }).setOrigin(0.5);
+    t.setAlpha(0);
+    this.tweens.add({ targets: t, alpha: 1, duration: 120, yoyo: true, repeat: 1, onComplete: () => t.destroy() });
+  }
+
+  updatePlayer(p: Player, targetHoop: Hoop) {
+    if (!p.isHuman || !p.keys) return;
+    const k = p.keys; const body = p.sprite.body as ArcadeBody;
+    let vx = 0; if (k.left.isDown) { vx -= p.speed; p.facing = -1; } if (k.right.isDown) { vx += p.speed; p.facing = 1; }
+    body.setVelocityX(vx);
+    if (Phaser.Input.Keyboard.JustDown(k.jump) && Math.abs(body.velocity.y) < 10) {
+      body.setVelocityY(p.jumpVel);
+      this.dunkIfPossible(p, targetHoop);
+    }
+    if (Phaser.Input.Keyboard.JustDown(k.shoot)) {
+      if (!this.dunkIfPossible(p, targetHoop)) this.shoot(p, targetHoop);
+    }
+  }
+
+  updateAi(p: Player, targetHoop: Hoop) {
+    if (p.isHuman) return;
+    const body = p.sprite.body as ArcadeBody;
+    const goalX = this.ballHolder && this.ballHolder.team === p.team ? targetHoop.x : this.ball.x;
+    const dir = Math.sign(goalX - p.sprite.x) || 0;
+    body.setVelocityX(dir * (p.speed * 0.85));
+    if (Math.random() < 0.01 && Math.abs(body.velocity.y) < 10 && (Math.abs(p.sprite.x - targetHoop.x) < 140 || Math.abs(p.sprite.x - this.ball.x) < 80)) {
+      body.setVelocityY(p.jumpVel);
+    }
+    if (this.ballHolder === p) {
+      const near = Math.abs(p.sprite.x - targetHoop.x) < 220 && p.sprite.y < targetHoop.y + 120;
+      if (near) { if (!this.dunkIfPossible(p, targetHoop)) this.shoot(p, targetHoop); }
+    }
   }
 }
 
@@ -270,20 +277,11 @@ const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   backgroundColor: '#0b1020',
   parent: 'game-root',
-  width: GAME_WIDTH,
-  height: GAME_HEIGHT,
-  scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
-  },
-  physics: {
-    default: 'arcade',
-    arcade: {
-      gravity: { x: 0, y: 1400 },
-      debug: false,
-    },
-  },
-  scene: [MainScene],
+  width: WIDTH,
+  height: HEIGHT,
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+  physics: { default: 'arcade', arcade: { gravity: { x: 0, y: 1300 }, debug: false } },
+  scene: [JamScene],
 };
 
 new Phaser.Game(config);
