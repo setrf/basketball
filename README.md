@@ -1,6 +1,6 @@
 # Basketball Game
 
-A fun and interactive basketball game built with the Phaser game framework.
+A fun and interactive basketball game built with the PixiJS rendering engine.
 
 ## How to Play
 
@@ -13,4 +13,4 @@ A fun and interactive basketball game built with the Phaser game framework.
 - Realistic "Drag and Shoot" mechanic.
 - Physics-based ball trajectory.
 - Score tracking.
-- Built with the Phaser 3 game framework.
+- Built with the PixiJS 2D rendering engine.

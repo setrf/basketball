@@ -1,88 +1,83 @@
-class BootScene extends Phaser.Scene {
-  constructor() {
-    super({ key: 'BootScene' });
+const app = new PIXI.Application({ width: 800, height: 600, backgroundColor: 0x0b0f14 });
+document.body.appendChild(app.view);
+
+const scoreText = new PIXI.Text('Score: 0', { fontSize: 32, fill: 0xffffff });
+scoreText.x = 16;
+scoreText.y = 16;
+app.stage.addChild(scoreText);
+
+const hoop = new PIXI.Graphics();
+hoop.lineStyle(5, 0xff8c00);
+hoop.drawRect(350, 150, 100, 20);
+app.stage.addChild(hoop);
+
+const ball = new PIXI.Text('🏀', { fontSize: 64 });
+ball.anchor.set(0.5);
+ball.x = 400;
+ball.y = 500;
+ball.interactive = true;
+ball.buttonMode = true;
+app.stage.addChild(ball);
+
+let score = 0;
+let dragging = false;
+let start = null;
+let velocity = { x: 0, y: 0 };
+let gravity = 0.5;
+
+ball.on('pointerdown', e => {
+  dragging = true;
+  start = { x: e.data.global.x, y: e.data.global.y };
+});
+
+app.stage.on('pointermove', e => {
+  if (dragging) {
+    // visual feedback for dragging can be added here
   }
+});
 
-  preload() {
-    // No assets to load for now
+app.stage.on('pointerup', e => {
+  if (dragging) {
+    dragging = false;
+    const end = { x: e.data.global.x, y: e.data.global.y };
+    velocity.x = (start.x - end.x) / 10;
+    velocity.y = (start.y - end.y) / 10;
   }
+});
 
-  create() {
-    this.scene.start('PlayScene');
-  }
-}
+app.ticker.add(() => {
+  if (!dragging) {
+    velocity.y += gravity;
+    ball.x += velocity.x;
+    ball.y += velocity.y;
 
-class PlayScene extends Phaser.Scene {
-  constructor() {
-    super({ key: 'PlayScene' });
-  }
-
-  create() {
-    this.score = 0;
-
-    this.scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '32px', fill: '#fff' });
-
-    this.hoop = this.physics.add.sprite(400, 150, null);
-    this.hoop.body.setCircle(30);
-    this.hoop.body.setAllowGravity(false);
-    this.hoop.body.setImmovable(true);
-
-    this.ball = this.add.text(400, 500, '🏀', { fontSize: '64px' });
-    this.physics.world.enable(this.ball);
-    this.ball.body.setCircle(32);
-    this.ball.body.setCollideWorldBounds(true);
-    this.ball.body.setBounce(0.8, 0.8);
-
-    this.input.on('pointerdown', this.startDrag, this);
-    this.input.on('pointerup', this.endDrag, this);
-
-    this.physics.add.overlap(this.ball, this.hoop, this.scorePoint, null, this);
-  }
-
-  startDrag(pointer) {
-    this.dragStartX = pointer.x;
-    this.dragStartY = pointer.y;
-  }
-
-  endDrag(pointer) {
-    this.dragEndX = pointer.x;
-    this.dragEndY = pointer.y;
-
-    const dx = this.dragEndX - this.dragStartX;
-    const dy = this.dragEndY - this.dragStartY;
-
-    this.ball.body.setVelocity(-dx * 2, -dy * 2);
-  }
-
-  scorePoint() {
-    this.score++;
-    this.scoreText.setText('Score: ' + this.score);
-    this.resetBall();
-  }
-
-  resetBall() {
-    this.ball.body.setVelocity(0, 0);
-    this.ball.x = 400;
-    this.ball.y = 500;
-  }
-
-  update() {
-    // Game loop
-  }
-}
-
-const config = {
-  type: Phaser.AUTO,
-  width: 800,
-  height: 600,
-  physics: {
-    default: 'arcade',
-    arcade: {
-      gravity: { y: 300 },
-      debug: false
+    if (ball.x < 0 || ball.x > app.screen.width) {
+      velocity.x *= -1;
     }
-  },
-  scene: [BootScene, PlayScene]
-};
 
-const game = new Phaser.Game(config);
+    if (ball.y > app.screen.height) {
+      resetBall();
+    }
+
+    if (checkCollision()) {
+      score++;
+      scoreText.text = `Score: ${score}`;
+      resetBall();
+    }
+  }
+});
+
+function checkCollision() {
+  return (
+    ball.x > hoop.x &&
+    ball.x < hoop.x + hoop.width &&
+    ball.y > hoop.y &&
+    ball.y < hoop.y + hoop.height
+  );
+}
+
+function resetBall() {
+  ball.x = 400;
+  ball.y = 500;
+  velocity = { x: 0, y: 0 };
+}
