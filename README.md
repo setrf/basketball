@@ -1,16 +1,31 @@
-# Basketball Game
+# Basketball (Phaser 3 + TypeScript)
 
-A fun and interactive single-player basketball game built with Phaser 3 and TypeScript.
+Singleplayer 2D basketball game that runs on mobile and desktop. Drag from the ball to aim; release to shoot. Score when the ball passes cleanly through the hoop.
 
-## How to Play
+## Dev
 
-- Drag the ball with your mouse to aim.
-- Release the mouse button to shoot the ball.
-- Score as many points as you can!
+- Run locally:
+  - `npm start` (serves on http://localhost:8080)
+- Build:
+  - `npm run build` (outputs `public/game.js`)
 
-## Features
+## Deploy (on droplet)
 
-- "Drag and Shoot" mechanic.
-- Physics-based ball trajectory.
-- Score tracking.
-- Built with Phaser 3 and TypeScript.
+Use the helper deploy script documented in the platform README:
+
+- `deploy_static /root/Projects/apps/basketball/public basketball`
+
+Then access via:
+
+- Platform path: `http://<droplet-ip>/apps/basketball/`
+- Domain (if configured): `https://basketball.mertgulsun.com/`
+
+## Controls
+
+- Touch/Mouse: Drag from the ball to set aim and power (longer drag → more power). Release to shoot.
+- The hoop is on the right; shots reset when out of bounds or at rest.
+
+## Notes
+
+- Uses generated textures (no external assets) for easy deployment.
+- Physics: Arcade Physics with backboard and rim-edge colliders; net sensors detect clean makes.

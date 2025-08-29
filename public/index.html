@@ -2,21 +2,27 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>Basketball Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>Phaser Basketball</title>
     <style>
-      body {
-        margin: 0;
-        background-color: #0b0f14;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-      }
+      :root { --hud-font: clamp(12px, 1.2vw, 18px); --hint-font: clamp(12px, 1.1vw, 16px); }
+      html, body { height: 100%; margin: 0; background: #0b1020; color: #fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+      #game-root { width: 100%; height: 100%; display: grid; place-items: center; }
+      .hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; gap: 8px; pointer-events: none; }
+      .hint { position: absolute; bottom: 12px; left: 0; right: 0; text-align: center; color: #aab; font-size: var(--hint-font); opacity: 0.9; pointer-events: none; }
+      .pill { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); padding: 6px 10px; border-radius: 999px; font-size: var(--hud-font); }
+      a { color: #9cf; text-decoration: none; }
     </style>
   </head>
   <body>
-    <div id="game"></div>
+    <div id="game-root"></div>
+    <div class="hud">
+      <div class="pill" id="score-pill">Score: 0</div>
+      <div class="pill" id="streak-pill">Streak: 0</div>
+    </div>
+    <div class="hint">Drag from the ball to aim, release to shoot</div>
     <script src="./game.js"></script>
   </body>
 </html>

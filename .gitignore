@@ -3,3 +3,8 @@
 
 # Ignore Node.js dependency folders
 node_modules
+
+# Ignore built artifacts
+public/game.js
+public/game.js.map
+public/game.js.LICENSE.txt
