@@ -1,0 +1,27 @@
+{
+  "name": "basketball",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "install-client": "cd client && npm install",
+    "install-server": "cd server && npm install",
+    "postinstall": "npm run install-client && npm run install-server",
+    "start": "concurrently \"npm run start --prefix client\" \"npm run start --prefix server\"",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/setrf/basketball.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/setrf/basketball/issues"
+  },
+  "homepage": "https://github.com/setrf/basketball#readme",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
